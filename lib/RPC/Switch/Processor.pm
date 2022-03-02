@@ -468,6 +468,15 @@ sub rpc_withdraw {
 	die 'nothing announced?'  unless is_arrayref($wms);
 	
 	# todo: filtering?
+	my $filterkey = sel('backendfilter', $method);
+	if ($filterkey) {
+		$log->debug("filtering for $method with $filterkey") if $debug;
+
+		my $filtervalue = $i->{filter}{$filterkey};
+		die "filter parameter $filterkey undefined for method $method" unless $filtervalue;
+
+		$method = "$method\n$filtervalue";
+	}
 	my @m = grep(@$wms[$_] eq $method, 0..$#$wms);
 	die "method $method was not announced" unless @m;
 	splice @$wms, $_, 1 for @m;
