@@ -93,6 +93,7 @@ END { $_->stop for splice @running }
 #	users	account names, default @USERS
 #	port	listen port, default a free one
 #	listen	extra key/values for the default listen entry
+#	tls	serve tls and accept the generated client certificate
 #
 sub new {
 	my ($class, %args) = @_;
@@ -105,11 +106,13 @@ sub new {
 		port => $args{port} // _free_port(),
 		listen => $args{listen} // {},
 		config => $args{config},
+		tls => $args{tls},
 	}, $class;
 
 	mkdir $self->cfgdir or die 'no cfgdir: ' . $!;
 	$self->write_methods($self->{methods});
 	$self->_write_passwd;
+	$self->_write_certs if $self->{tls};
 	$self->_write_config;
 
 	return $self;
@@ -145,11 +148,52 @@ sub _write_passwd {
 			@{$self->{users}});
 }
 
+# the common name of the generated client certificate
+our $CLIENTCN = 'testclient';
+
+# a throwaway ca with a server and a client certificate, and the cnfile
+# mapping the client common name onto the test accounts
+#
+sub _write_certs {
+	my ($self) = @_;
+
+	require IO::Socket::SSL::Utils;
+	IO::Socket::SSL::Utils->import(qw(CERT_create PEM_cert2file PEM_key2file));
+
+	my $dir = $self->cfgdir;
+	my @ca = CERT_create(CA => 1, subject => {commonName => 'rpcswitch test ca'});
+
+	for ([server => 'localhost'], [client => $CLIENTCN]) {
+		my ($what, $cn) = @$_;
+		my ($cert, $key) = CERT_create(subject => {commonName => $cn},
+			issuer => \@ca, purpose => $what);
+		PEM_cert2file($cert, "$dir/$what.crt");
+		PEM_key2file($key, "$dir/$what.key");
+	}
+	PEM_cert2file($ca[0], "$dir/ca.crt");
+
+	_spew("$dir/switch.cnfile",
+		$CLIENTCN . ':' . join(',', @{$self->{users}}) . "\n");
+}
+
 sub _write_config {
 	my ($self) = @_;
 	my $config = $self->{config} // do {
-		my $extra = join '', map { "\t\t\t$_ => '$self->{listen}->{$_}',\n" }
-			sort keys %{$self->{listen}};
+		my %listen = %{$self->{listen}};
+		my %auth = (password => 'RPC::Switch::Auth::Password');
+		my $authcfg = '';
+		if ($self->{tls}) {
+			my %tls = (tls_cert => 'server.crt',
+				tls_key => 'server.key', tls_ca => 'ca.crt');
+			# absolute: mojo resolves these against the cwd, not cfgdir
+			$listen{$_} = $self->cfgdir . '/' . $tls{$_} for keys %tls;
+			$auth{clientcert} = 'RPC::Switch::Auth::ClientCert';
+			$authcfg = "\t'auth|clientcert' => {\n\t\tcnfile => 'switch.cnfile',\n\t},\n";
+		}
+		my $extra = join '', map { "\t\t\t$_ => '$listen{$_}',\n" }
+			sort keys %listen;
+		my $authmethods = join '', map { "\t\t$_ => '$auth{$_}',\n" }
+			sort keys %auth;
 		<<"EOF";
 \$cfg = {
 	methods => 'methods.pl',
@@ -161,12 +205,11 @@ sub _write_config {
 $extra		},
 	],
 	auth => {
-		password => 'RPC::Switch::Auth::Password',
-	},
+$authmethods	},
 	'auth|password' => {
 		pwfile => 'switch.passwd',
 	},
-};
+$authcfg};
 EOF
 	};
 	_spew($self->cfgdir . '/config.pl', $config);
@@ -234,6 +277,12 @@ sub run {
 sub connect {
 	my ($self) = @_;
 	return TestSwitch::Conn->new($self->port);
+}
+
+# the same over tls; cert => 1 presents the generated client certificate
+sub connect_tls {
+	my ($self, %args) = @_;
+	return TestSwitch::Conn->new($self->port, tls => $self->cfgdir, %args);
 }
 
 # poll $cb until it returns true or $timeout seconds pass
@@ -322,13 +371,36 @@ use JSON::MaybeXS qw(decode_json encode_json);
 use constant TIMEOUT => 10;
 use constant QUIET => 0.5;
 
+# a refused tls handshake is a result, not a failure: the connection
+# comes back at eof with the reason in error()
+#
 sub new {
-	my ($class, $port) = @_;
-	my $socket = IO::Socket::INET->new(
-		PeerAddr => '127.0.0.1',
-		PeerPort => $port,
-		Proto => 'tcp',
-	) or die "cannot connect to port $port: $!";
+	my ($class, $port, %args) = @_;
+
+	my $socket;
+	if (my $dir = $args{tls}) {
+		require IO::Socket::SSL;
+		$socket = IO::Socket::SSL->new(
+			PeerAddr => "127.0.0.1:$port",
+			Proto => 'tcp',
+			Timeout => 30,
+			SSL_ca_file => "$dir/ca.crt",
+			SSL_verifycn_scheme => 'none',
+			($args{cert} ? (
+				SSL_cert_file => "$dir/client.crt",
+				SSL_key_file => "$dir/client.key",
+			) : ()),
+		);
+		return bless {eof => 1, error => $IO::Socket::SSL::SSL_ERROR}, $class
+			unless $socket;
+	} else {
+		$socket = IO::Socket::INET->new(
+			PeerAddr => '127.0.0.1',
+			PeerPort => $port,
+			Proto => 'tcp',
+		) or die "cannot connect to port $port: $!";
+	}
+
 	my $self = bless {
 		buf => '',
 		eof => 0,
@@ -341,6 +413,7 @@ sub new {
 }
 
 sub greetings { $_[0]->{greetings} }
+sub error { $_[0]->{error} }
 sub eof { $_[0]->{eof} }
 
 # the next decoded message, or undef on timeout or eof
