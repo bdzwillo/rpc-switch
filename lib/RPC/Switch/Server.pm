@@ -1,5 +1,6 @@
 package RPC::Switch::Server;
 use Mojo::Base -base;
+use Mojolicious (); # for $Mojolicious::VERSION
 
 use Scalar::Util qw(refaddr);
 
@@ -17,7 +18,12 @@ sub new {
 		$serveropts->{tls_cert} = $l->{tls_cert};
 	}
 	if ($l->{tls_ca}) {
-		#$serveropts->{tls_verify} = 0; # cheating..
+		# mojo 9 replaced tls_verify with tls_options
+		if ($Mojolicious::VERSION >= 9) {
+			$serveropts->{tls_options} = {SSL_verify_mode => 0x03};
+		} else {
+			$serveropts->{tls_verify} = 0x03;
+		}
 		$serveropts->{tls_ca} = $l->{tls_ca};
 	}
 
