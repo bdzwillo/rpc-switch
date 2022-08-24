@@ -378,7 +378,7 @@ sub _load_config {
 
 	my $slurp = Mojo::File->new($methodpath)->slurp();
 
-	my ($acl, $backend2acl, $backendfilter, $method2acl, $methods, $visible_acl);
+	my ($acl, $backend2acl, $backendfilter, $backendpersist, $method2acl, $methods, $visible_acl);
 
 	local $SIG{__WARN__} = sub { die @_ };
 
@@ -387,6 +387,8 @@ sub _load_config {
 	die "error loading method config: $@" if $@;
 	die 'emtpy method config?' unless $acl && $backend2acl
 		&& $backendfilter && $method2acl && $methods && $visible_acl;
+
+	$backendpersist = {} unless defined $backendpersist; # optional
 
 	for (@$visible_acl) {
 		die "no such acl $_ in \$visibile_acl" unless exists $acl->{$_};
@@ -458,6 +460,9 @@ sub _load_config {
 	while (my ($a, $b) = each(%$backendfilter)) {
 		ins('backendfilter', $a, $b);
 	}
+	while (my ($a, $b) = each(%$backendpersist)) {
+		ins('backendpersist', $a, $b);
+	}
 
 	while (my ($a, $b) = each(%$method2acl)) {
 		$b = [ $b ] unless ref $b;
@@ -487,6 +492,9 @@ sub _load_config {
 			if (my $bf = $backendfilter->{$be} // $backendfilter->{"$bns.*"}) {
 				$md->{_f} = $bf;
 			}
+			if (my $bp = $backendpersist->{$be} // $backendpersist->{"$bns.*"}) {
+				$md->{_p} = $bp;
+			}
 			if (my $r = $md->{r}) {
 				$md->{r} = $r = [ $r ] unless is_arrayref($r);
 				for (@$r) {
@@ -503,6 +511,7 @@ sub _load_config {
 		$log->debug('acl           ' . Dumper($acl));
 		$log->debug('backend2acl   ' . Dumper($backend2acl));
 		$log->debug('backendfilter ' . Dumper($backendfilter));
+		$log->debug('backendpersist ' . Dumper($backendpersist));
 		$log->debug('method2acl    ' . Dumper($method2acl));
 		$log->debug('methods       ' . Dumper(\%methods));
 		$log->debug('who2visacl    ' . Dumper(\%who2visacl));

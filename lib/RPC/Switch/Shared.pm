@@ -24,6 +24,7 @@ our @EXPORT = qw(ins sel upd del all allforkey txn);
 our %tables = (
 	backend2acl => 0,
 	backendfilter => 0,
+	backendpersist => 0,
 	cons => 0,
 	doc => 0,
 	method2acl => 0,

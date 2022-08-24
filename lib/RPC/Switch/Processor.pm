@@ -860,7 +860,20 @@ sub _do_dispatch {
 		# sort $l by refcount
 		#$wm = (sort { $a->{connection}->{refcount} <=> $b->{connection}->{refcount}} @$l)[0];
 		# this should produce least refcount round robin balancing
-		$wm = (shuffle(@$l))[0];
+
+		my $pk = $md->{_p};
+		if ($pk && exists $request->{params}{$pk}) {
+			# if persistency on a request field is configured, select always
+			# the same worker based on a hash of this field.
+			#
+			my $len = scalar @$l;
+			my $hval = unpack("H*", substr($request->{params}{$pk}, -4)); # hex of last 4 chars
+			$wm = $$l[$hval % $len];
+
+			$log->debug("select peristent worker $wm->{cid} for $pk = $request->{params}{$pk}") if $debug;
+		} else {
+			$wm = (shuffle(@$l))[0];
+		}
 	} else {
 		$wm = $$l[0];
 	}
