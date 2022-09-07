@@ -808,6 +808,16 @@ sub _handle_request {
 	goto &_do_dispatch;
 }
 
+# simple str_hash function from linux kernel
+#
+sub _str_hash {
+	my ($s) = @_;
+	my $h=0;
+	foreach my $c (split(//, $s)) {
+		$h = (($h << 5) - $h + ord($c)) & 0xffffffff;
+	}
+	return $h;
+}
 
 sub _do_dispatch {
 	my ($con, $request, $md) = @_;
@@ -867,7 +877,8 @@ sub _do_dispatch {
 			# the same worker based on a hash of this field.
 			#
 			my $len = scalar @$l;
-			my $hval = unpack("H*", substr($request->{params}{$pk}, -4)); # hex of last 4 chars
+			#my $hval = unpack("H*", substr($request->{params}{$pk}, -4)); # hex of last 4 chars
+			my $hval = _str_hash($request->{params}{$pk});
 			$wm = $$l[$hval % $len];
 
 			$log->debug("select peristent worker $wm->{cid} for $pk = $request->{params}{$pk}") if $debug;
