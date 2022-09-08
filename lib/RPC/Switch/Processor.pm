@@ -876,10 +876,15 @@ sub _do_dispatch {
 			# if persistency on a request field is configured, select always
 			# the same worker based on a hash of this field.
 			#
+			# note: since the backend-list for each method is returned in
+			#       a different order, the list has to be ordered first.
+			#       Then all methods announced over the same connection will
+			#       use the same persistency.
+			#
 			my $len = scalar @$l;
-			#my $hval = unpack("H*", substr($request->{params}{$pk}, -4)); # hex of last 4 chars
 			my $hval = _str_hash($request->{params}{$pk});
-			$wm = $$l[$hval % $len];
+			my @list = sort { $a->{cid} cmp $b->{cid} } @$l;
+			$wm = $list[$hval % $len];
 
 			$log->debug("select peristent worker $wm->{cid} for $pk = $request->{params}{$pk}") if $debug;
 		} else {
