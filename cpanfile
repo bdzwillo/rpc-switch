@@ -12,3 +12,9 @@ recommends 'Cpanel::JSON::XS', '2.3310';
 recommends 'IO::Socket::SSL', '1.94';
 recommends 'Net::DNS::Native';
 recommends 'RPC::Switch::Client', '0.07';
+
+# required for tests when distributions split it from core perl
+#
+on test => sub {
+	requires 'Test::More', '0.88';
+};
