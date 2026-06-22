@@ -23,3 +23,9 @@ recommends 'EV';
 recommends 'IO::Socket::SSL', '1.94';
 recommends 'Net::DNS::Native';
 recommends 'RPC::Switch::Client', '0.14';
+
+# required for tests when distributions split it from core perl
+#
+on test => sub {
+	requires 'Test::More', '0.88';
+};
