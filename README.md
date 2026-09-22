@@ -41,6 +41,36 @@ RPC::Switch::Client::Tiny module, and are skipped without it.
 
 make test DEVLIB=../rpc-switch-client-tiny/lib - test an unreleased client
 
+## USAGE EXAMPLE
+
+Setup:
+```
+$ cp etc/config.pl.example etc/config.pl   # one plain listener on port 6551
+$ cp etc/methods.pl.example etc/methods.pl # the foo.* to bar.* mapping
+```
+etc/switch.passwd holds a crypt hash per account:
+```
+$ echo "theEmployee:$(openssl passwd -5 secret)" > etc/switch.passwd
+$ echo "deKlant:$(openssl passwd -5 secret)" >> etc/switch.passwd
+```
+Run rpc-switch on 127.0.0.1:6551 reading etc/config.pl (with deps in local dir):
+```
+$ PERL5LIB=local/lib/perl5 bin/rpcswitch &
+```
+Run rpctiny from a RPC-Switch-Client-Tiny checkout (examples are not installed):
+```
+$ PERL5LIB=local/lib/perl5 ../rpc-switch-client-tiny/examples/rpctiny -l theEmployee:secret -m rpcswitch.ping
+  pong?
+$ PERL5LIB=local/lib/perl5 ../rpc-switch-client-tiny/examples/rpctiny -l theEmployee:secret -m rpcswitch.get_methods -j
+  [{"foo.power":"undocumented method"},{"foo.add":"undocumented method"}]
+```
+Announce a worker and call it through the foo.add to bar.add mapping:
+```
+$ PERL5LIB=local/lib/perl5 ../rpc-switch-client-tiny/examples/rpctiny -w -m bar.add -l theEmployee:secret &
+$ PERL5LIB=local/lib/perl5 ../rpc-switch-client-tiny/examples/rpctiny -l deKlant:secret -m foo.add '{"val": "tiny"}'
+  {"msg":"pong tiny","success":1}
+```
+
 ## COPYRIGHT AND LICENSE
 
 This software is copyright (c) 2017 by Wieger Opmeer.
