@@ -28,4 +28,8 @@ recommends 'RPC::Switch::Client', '0.14';
 #
 on test => sub {
 	requires 'Test::More', '0.88';
+
+	# t/09_client_tiny.t needs it, also to pull in JSON and
+	# IO::Socket::SSL, which a DEVLIB checkout relies on.
+	requires 'RPC::Switch::Client::Tiny', '1.67';
 };
