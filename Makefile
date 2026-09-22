@@ -1,6 +1,7 @@
 # install rpc-switch deps and run tests (the rpcswitch itself needs no build)
 #
 # $ make test PROVE_FLAGS='-v'
+# $ make test DEVLIB=../rpc-switch-client-tiny/lib
 # $ make deps CPANM_FLAGS=--notest
 # $ make deps LOCALLIB=/tmp/rpcswitch/perl5
 #
@@ -10,10 +11,15 @@ PROVE = prove
 LOCALLIB = local
 PROVE_FLAGS =
 
-# prepend $(LOCALLIB) - an inherited PERL5LIB has to survive.
-# (perl drops an empty $(LOCALLIB) entry)
+# test an unreleased dependency from its checkout - DEVLIB shadows the
+# release installed in $(LOCALLIB)
 #
-TEST_ENV = PERL5LIB=$(LOCALLIB)/lib/perl5:$$PERL5LIB
+DEVLIB =
+
+# prepend $(DEVLIB) and $(LOCALLIB) - an inherited PERL5LIB has to survive.
+# (perl drops empty entries)
+#
+TEST_ENV = PERL5LIB=$(DEVLIB):$(LOCALLIB)/lib/perl5:$$PERL5LIB
 
 .PHONY: help have-cpanm deps test clean
 

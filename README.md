@@ -36,6 +36,11 @@ make test - runs rpc-switch tests via "prove t"
 
 Extra arguments might be passed like "make test PROVE_FLAGS='-v'".
 
+Integration tests in t/09_client_tiny.t exercise the switch with the
+RPC::Switch::Client::Tiny module, and are skipped without it.
+
+make test DEVLIB=../rpc-switch-client-tiny/lib - test an unreleased client
+
 ## COPYRIGHT AND LICENSE
 
 This software is copyright (c) 2017 by Wieger Opmeer.
